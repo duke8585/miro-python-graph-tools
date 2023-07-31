@@ -75,7 +75,7 @@ def print_log(message):
             print(json.dumps(message))
 
 
-def get_board_item(board_id, item_id):
+def get_board_item(board_id, item_id) -> dict:
     """get specific item via its item_id from board"""
     url = f"{GLOBAL_URL}/boards/{board_id}/items/{item_id}"
     response = _requests_get(url)
@@ -85,23 +85,38 @@ def get_board_item(board_id, item_id):
     return result
 
 
+def _get_item_caption(board_id: str, item_id: str) -> str:
+    return get_board_item(item_id=item_id, board_id=board_id)["content"]
+
+
 def _clean_str(string: str) -> str:
     """replace html paragraph tags in a string"""
     return string.replace("<p>", "").replace("</p>", "")
 
 
-def make_trivial_graph(board_id, connectors):
-    """go through a list of connectors, extracting the captions
-    of the starting and end node with the connecror caption to a edge list"""
-    # FIXME refactor better
-    gi = lambda i: get_board_item(item_id=i, board_id=board_id)["content"]
-    ct = lambda s: _clean_str(s)
-    extr = lambda d: [
-        ct(gi(d["startItem"]["id"])),
-        [ct(c["content"]) for c in d["captions"]],
-        ct(gi(d["endItem"]["id"])),
-    ]
-    return [extr(conn) for conn in connectors]
+def _extract_connector(board_id, connector: dict):
+    """take a connector object
+    for start (from) and end (to): retrieve its caption via its id and clean it up
+    for the connector, if multiple caption, join them and clean them up
+    return: a list with captions of start (from), connector and end (to) item"""
+    from_id = connector["startItem"]["id"]
+    from_caption = _clean_str(_get_item_caption(board_id, from_id))
+    connector_caption_merged = _clean_str(
+        ", ".join(c["content"] for c in connector["captions"])
+    )
+    to_id = connector["endItem"]["id"]
+    to_caption = _clean_str(_get_item_caption(board_id, to_id))
+    return [from_caption, connector_caption_merged, to_caption]
+
+
+def make_trivial_graph(board_id, connectors) -> list[list]:
+    """iterate through connectors and build adjacency list from its nodes and caption (edge)"""
+    adjacency_list = []
+
+    for edge in connectors:
+        adjacency_list.append(_extract_connector(board_id, edge))
+
+    return adjacency_list
 
 
 def make_sticky(board_id, caption="test", x_pos=0, y_pos=0):
@@ -160,7 +175,7 @@ def tgf_demo():
     """
     conns = get_board_connectors(board_id="uXjVM2vb9AQ=")
     # pp(items)
-    conns = make_trivial_graph(connectors=conns, board_id="uXjVM2vb9AQ=")
+    conns = make_trivial_graph(board_id="uXjVM2vb9AQ=", connectors=conns)
     pp(conns)
 
 
