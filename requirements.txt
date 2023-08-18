@@ -1,2 +1,4 @@
 requests
 types-requests
+networkx==3.1
+matplotlib
